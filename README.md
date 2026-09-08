@@ -1,4 +1,4 @@
-# ⚡ FUELWISE
+# ⚡ FUELQUEUE
 
 > **AI that knows where to go and how long you'll wait — before you leave.**
 > No sensors. No IoT. Just smart algorithms that save millions of hours.
@@ -10,7 +10,7 @@ forecasting, and smart load-balancing so drivers never waste hours in a 3-hour q
 
 ## 🚀 One-Line Pitch
 
-**"FUELWISE: AI that knows where to go and how long you'll wait — before you leave."**
+**"FUELQUEUE: AI that knows where to go and how long you'll wait — before you leave."**
 
 ## 🧠 Core Innovations
 
@@ -38,7 +38,7 @@ forecasting, and smart load-balancing so drivers never waste hours in a 3-hour q
 ## 🗂️ Repository Layout
 
 ```
-fuelwise/
+fuelqueue/
 ├── .env                      # All env vars (copy .env.example)
 ├── docker-compose.yml        # TimescaleDB + pgAdmin (+ optional api/web)
 ├── docker/postgres/init/     # Provisions fuelwise_tsdb
