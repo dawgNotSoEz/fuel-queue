@@ -3,13 +3,6 @@
  * Maps are free: React Leaflet + OpenStreetMap, no API keys required.
  */
 
-export const FALLBACK_CENTER = {
-  lat: 18.5204,
-  lng: 73.8567,
-  /** Default city centre used when geolocation is denied (Pune). */
-  label: 'Pune · Demo Region',
-} as const;
-
 /** Station cloud radius bounds (km). */
 
 export const MAX_STATION_RADIUS_KM = 10;
@@ -37,21 +30,6 @@ export const API_BASE_URL = ((): string => {
     hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
   return isLocalHost ? 'http://localhost:8000' : '';
 })().replace(/\/+$/, '');
-
-/**
- * Fallback centre resolved from the shared root `.env`
- * (VITE_MAP_CENTER_LAT / VITE_MAP_CENTER_LNG).
- */
-export function resolveEnvCenter(): { lat: number; lng: number } {
-  const rawLat = import.meta.env.VITE_MAP_CENTER_LAT;
-  const rawLng = import.meta.env.VITE_MAP_CENTER_LNG;
-  const lat = Number.parseFloat(rawLat ?? '');
-  const lng = Number.parseFloat(rawLng ?? '');
-  const valid = Number.isFinite(lat) && Number.isFinite(lng);
-  return valid
-    ? { lat, lng }
-    : { lat: FALLBACK_CENTER.lat, lng: FALLBACK_CENTER.lng };
-}
 
 /** Default zoom before the map auto-fits the station cloud (env-driven). */
 export function resolveDefaultZoom(): number {

@@ -13,16 +13,16 @@ export type ConnectorType = 'CCS' | 'CHAdeMO' | 'Type 2';
 export type PressureLevel = 'low' | 'medium' | 'high';
 
 /** Where the map centre came from. */
-export type LocationSource = 'user' | 'fallback';
+export type LocationSource = 'user';
 
 export interface UserLocation {
   lat: number;
   lng: number;
-  /** Geolocation accuracy in metres (undefined for the fallback centre). */
+  /** Geolocation accuracy in metres. */
   accuracy?: number;
-  /** 'user' = live GPS fix · 'fallback' = default city centre (Pune). */
+  /** This app only renders a location obtained from the user's device. */
   source: LocationSource;
-  /** Human-readable label shown in the UI ("Live Location", "Pune · Demo"). */
+  /** Human-readable label shown in the UI. */
   label: string;
 }
 

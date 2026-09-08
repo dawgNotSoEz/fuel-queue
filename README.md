@@ -1,139 +1,250 @@
-# ⚡ FUELQUEUE
+# FUELQUEUE
 
-> **AI that knows where to go and how long you'll wait — before you leave.**
-> No sensors. No IoT. Just smart algorithms that save millions of hours.
+> Real-time CNG and EV station discovery with nearby routing, queue estimates, station health, and OpenStreetMap data.
 
-FUELWISE unifies **CNG + EV** refuelling discovery, live (simulated) queue-wait
-forecasting, and smart load-balancing so drivers never waste hours in a 3-hour queue.
+FUELQUEUE helps drivers find the best nearby CNG pump or EV charger by combining live browser location, real station data, queue estimates, station health, and total travel time. It is a hackathon-ready monorepo with a React frontend, FastAPI backend, optional PostgreSQL/TimescaleDB, and an XGBoost prediction pipeline.
 
----
+## Features
 
-## 🚀 One-Line Pitch
+- Real browser geolocation with no silent default city or invented coordinates.
+- Real CNG pumps and EV chargers from OpenStreetMap Overpass.
+- Curated real-coordinate Pune fallback for offline backend seeding.
+- Free React Leaflet maps using OpenStreetMap tiles. No map API key required.
+- CNG and EV filters, connector details, operational status, queue estimates, and station health scores.
+- Haversine nearby search with a default 10 km radius, sorted nearest first.
+- FastAPI endpoints for stations, recommendations, predictions, and crowd reports.
+- Live-feel updates every 5 seconds through the backend simulator or frontend fallback simulator.
+- XGBoost training pipeline with 10,000 synthetic training records for the full local/Docker setup.
+- Vercel configuration for the Vite frontend and FastAPI service routing.
 
-**"FUELQUEUE: AI that knows where to go and how long you'll wait — before you leave."**
+## Repository Layout
 
-## 🧠 Core Innovations
-
-| # | Innovation | Phase | Status |
-|---|-----------|-------|--------|
-| 1 | **Predictive AI Engine** — XGBoost regression forecasting wait times (85%+ accuracy target) | 2–4 | Planned |
-| 2 | **Demand Distribution Algorithm** — total time = drive time + predicted wait, balanced across stations | 2 | Planned |
-| 3 | **Gamification** — FUEL POINTS rewarding real-time reporting | 3 | Planned |
-| 4 | **Voice Assistant** — eyes-free, natural-language operation | 5 | Planned |
-| 5 | **Unified Platform** — first combined CNG + EV intelligent routing | 1 | ✅ In progress |
-
-## ✨ Phase 1 Highlights (this scaffold)
-
-- ⬛ **Strict black & white** minimal UI — no neon, no glow, no "AI stereotype"
-  demo look. Serious, premium, high-contrast utility (Inter typeface, gray-scale semantics).
-- 🗺️ **Free map stack** — React Leaflet + OpenStreetMap. **Zero API keys required.**
-- 📍 Browser geolocation with graceful **Pune fallback** (`18.5204, 73.8567`).
-- ⛽ Monochrome **CNG pins** (teardrop, black fill + white stroke) &
-  🔲 monochrome **EV pins** (diamond, dark-gray fill).
-- ⬜ **Best/Worst language via stroke** (no colors): thick solid white = best,
-  thin dashed gray = worst — computed from `distance + wait` (lowest/highest).
-- 🔄 Simulated **live data**: wait times re-roll every 10 s so markers / popups update in real time.
-- 🧠 Zustand global state, memoized markers, Framer Motion micro-transitions.
-
-## 🗂️ Repository Layout
-
-```
-fuelqueue/
-├── .env                      # All env vars (copy .env.example)
-├── docker-compose.yml        # TimescaleDB + pgAdmin (+ optional api/web)
-├── docker/postgres/init/     # Provisions fuelwise_tsdb
-├── backend/                  # FastAPI skeleton (Phase 2 ready)
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app/
-│       ├── main.py           # GET / -> {"status": "ok"}
-│       ├── database.py       # SQLAlchemy engine placeholder
-│       └── models.py         # ORM mirrors of the frontend Station type
-└── frontend/                 # React + TypeScript + Vite
-    ├── Dockerfile
-    └── src/
-        ├── App.tsx
-        ├── components/       # Navbar, Map, pins, popup, prompt…
-        ├── hooks/            # useGeolocation
-        ├── store/            # Zustand store (useStore.ts)
-        ├── utils/            # mock data + monochrome SVG pins
-        └── types/            # Station, UserLocation …
+```text
+fuel-queue/
+├── backend/
+│   ├── api/index.py              # Vercel FastAPI entrypoint
+│   ├── app/
+│   │   ├── main.py               # FastAPI application
+│   │   ├── osm.py                # Overpass API client
+│   │   ├── station_seed.py       # Curated Pune fallback stations
+│   │   └── routers/              # stations, predict, recommend
+│   ├── scripts/
+│   │   ├── seed_db.py            # OSM + fallback database seeder
+│   │   └── train_model.py        # XGBoost training script
+│   ├── requirements.txt          # Lightweight Vercel dependencies
+│   ├── requirements-full.txt     # Local/Docker ML dependencies
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── components/           # Map, filters, station cards, prompt
+│   │   ├── hooks/                # Browser geolocation
+│   │   ├── store/                # Zustand state
+│   │   └── utils/                # API, Overpass, metrics, map helpers
+│   ├── package.json
+│   └── vercel.json
+├── docker-compose.yml            # TimescaleDB, pgAdmin, optional app profile
+├── docker/postgres/init/         # Database initialization
+├── .env.example
+└── vercel.json                   # Frontend/backend service routing
 ```
 
-## 🛠️ Getting Started
+## Requirements
 
-### 1) Frontend (the star of Phase 1)
-No accounts, no API keys — just run it:
-```bash
+- Node.js 18 or newer and npm
+- Python 3.12 recommended
+- Docker Desktop, only if you want PostgreSQL/TimescaleDB or the full container setup
+- Internet access for OpenStreetMap tiles and Overpass station queries
+
+No Google Maps key, OpenAI key, or other API key is required for the default setup.
+
+## Quick Start: Frontend Only
+
+The frontend can run without Python, Docker, or a database. It tries the backend when configured, then OpenStreetMap, then a local simulator if external data is unavailable.
+
+```powershell
 cd frontend
 npm install
-npm run dev          # http://localhost:5173
-```
-The app requests your location, then generates **18 CNG + 16 EV** mock stations
-inside a 10 km radius. Allow geolocation (or pick **Guest → Pune demo**). The map
-renders as a grayscale OSM layer so it stays inside the black & white theme.
-
-### 2) Databases (optional for Phase 1)
-```bash
-docker compose up -d db pgadmin
-# pgAdmin -> http://localhost:5050  (admin@fuelwise.dev / fuelwise_admin)
+npm run dev
 ```
 
-### 3) Backend (Phase 2 placeholder)
-```bash
+Open `http://localhost:5173`. Click **Use my location** and allow the browser permission. The application does not use Pune or any other default location when permission is denied.
+
+For a production build:
+
+```powershell
+npm run typecheck
+npm run build
+npm run preview
+```
+
+## Full Local Setup
+
+### 1. Configure environment variables
+
+From the repository root:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+For local frontend-to-backend communication, keep this value in `.env`:
+
+```dotenv
+VITE_API_URL=http://localhost:8000
+```
+
+The frontend uses the same-origin `/api` path when deployed and `localhost:8000` during local development.
+
+### 2. Start PostgreSQL/TimescaleDB
+
+```powershell
+docker compose up -d db
+docker compose ps
+```
+
+Optional pgAdmin:
+
+```powershell
+docker compose up -d pgadmin
+```
+
+Open `http://localhost:5050`. Credentials are defined in `.env` and `.env.example`.
+
+### 3. Install backend dependencies
+
+```powershell
 cd backend
-python -m venv .venv && source .venv/Scripts/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-# -> http://localhost:8000  { "status": "ok" }
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-full.txt
 ```
 
-## ▲ Deploying the frontend to Vercel
+### 4. Train the local prediction model
 
-The frontend is a **fully static React app** — maps come from OpenStreetMap and
-need **no API keys**, so it deploys to Vercel as-is. Without a backend URL it
-automatically falls back to **real nearby stations from OpenStreetMap** and then
-to the built-in live-feel simulator, so the demo always works.
-
-1. Push this repo to GitHub, then go to **vercel.com → New Project → Import** the
-   `fuel-queue` repo.
-2. Keep the **repository root** as the project root. The root `vercel.json`
-   declares the Vite frontend and FastAPI backend services and routes `/api/*`
-   to the backend.
-3. **Framework Preset:** Vite. Build command and output directory are declared
-   by the frontend service (`npm run build` → `dist`).
-4. (Optional) **Environment Variable:** add `VITE_API_URL` pointing at a hosted
-   FastAPI backend if you run the AI layer somewhere (Render / Railway / a VPS).
-   Leave it unset for the pure frontend demo.
-
-> **Deployment note:** The Python backend is exposed through `backend/api/index.py`.
-> FastAPI + XGBoost + TimescaleDB is not ideal for Vercel — it uses a
-> background simulator thread, Postgres, and `.pkl` model files — so run it
-> locally with Docker for the full demo, or host it separately.
-
-CLI equivalent:
-```bash
-npm i -g vercel
-vercel --cwd frontend --prod
+```powershell
+python scripts/train_model.py
 ```
 
-## 🧪 Verifying the Map
-1. `npm run dev` — tiles load straight from OpenStreetMap (internet required;
-   attribution stays visible on the map).
-2. Allow location → pins appear around you; deny → Pune demo region loads.
-3. Default filter is **CNG**; toggle to **EV** to see diamond pins (a few are
-   deliberately offline, ~18 %).
-4. Watch the **LIVE** chip — wait times re-roll every 10 s and the best/worst
-   stroke logic re-evaluates automatically.
+This creates ignored model artifacts under `backend/models/`. The Vercel runtime intentionally omits these heavy ML packages and uses the transparent heuristic fallback.
 
-> **Tile note:** OSM tiles are fine for light demo traffic with attribution.
-> For heavy production use, serve tiles from your own proxy or vendor.
+### 5. Seed real stations
 
-## 🗺️ Phase Roadmap
-- **Phase 2** — FastAPI endpoints, TimescaleDB hypertables, station CRUD.
-- **Phase 3** — Queue telemetry ingestion + gamified FUEL POINTS.
-- **Phase 4** — XGBoost predictive wait-time model + Demand Distribution Algorithm.
-- **Phase 5** — Voice assistant, FUEL POINTS redemptions, deployments.
+With the database running, from `backend/`:
 
----
-Made with ⚡ for the 48-hour hackathon.
+```powershell
+python scripts/seed_db.py
+```
+
+The seeder queries Overpass for real Pune CNG and EV stations. If Overpass is unavailable or rate-limited, it inserts the curated real-coordinate Pune fallback. To replace existing rows:
+
+```powershell
+python scripts/seed_db.py --reset
+```
+
+### 6. Start FastAPI
+
+```powershell
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Useful checks:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod "http://localhost:8000/api/stations?lat=18.5204&lng=73.8567"
+```
+
+Then open the frontend at `http://localhost:5173` and allow location access.
+
+## Docker App Profile
+
+To run the backend and frontend containers as well as the database:
+
+```powershell
+docker compose --profile app up -d --build
+docker compose ps
+```
+
+The Docker frontend is served on `http://localhost:8080` and the API on `http://localhost:8000`.
+
+Rebuild after source or dependency changes:
+
+```powershell
+docker compose --profile app down
+docker compose --profile app up -d --build
+```
+
+## API Reference
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Backend liveness and model status |
+| `GET` | `/api/stations?lat=&lng=&type=` | Nearby stations sorted by distance |
+| `GET` | `/api/recommend?lat=&lng=&type=` | Best/worst station ranking |
+| `POST` | `/api/predict` | Predict queue wait time |
+| `POST` | `/api/report` | Submit a crowd wait observation |
+
+The station endpoint defaults to a 10 km radius. It returns an empty list when a requested location is outside the backend's curated Pune cache; the frontend then queries OpenStreetMap directly for real nearby stations.
+
+## Vercel Deployment
+
+The repository contains a root `vercel.json` with two services:
+
+- `frontend`: Vite build from `frontend/`
+- `backend`: FastAPI entrypoint at `backend/api/index.py`
+
+### Dashboard deployment
+
+1. Import `dawgNotSoEz/fuel-queue` in Vercel.
+2. Keep the project root at the repository root. Do not set the root directory to `frontend`; the root config declares both services.
+3. Deploy the `main` branch.
+4. Add `VITE_API_URL` only if the backend is hosted separately. Leave it unset when using the same-origin Vercel service route.
+
+### CLI deployment
+
+```powershell
+npx vercel login
+npx vercel --prod
+```
+
+The Python service uses lightweight `backend/requirements.txt`. Heavy XGBoost and pandas dependencies are in `requirements-full.txt` for local/Docker use, keeping the Vercel function below its bundle-size limit.
+
+## Troubleshooting
+
+### “No stations found near this location”
+
+This is the final fallback state. Check `/health`, confirm `VITE_API_URL`, and verify that Overpass is reachable. Public Overpass mirrors can rate-limit or time out; the frontend retries multiple mirrors and then uses the local live-feel simulator.
+
+### Location permission denied
+
+The app intentionally stays on the location prompt. Enable browser location permission and click **Use my location** again. No default Pune coordinates are selected automatically.
+
+### Backend is unreachable
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+### Docker is serving stale code
+
+```powershell
+docker compose --profile app down
+docker compose --profile app up -d --build
+```
+
+## Validation Commands
+
+```powershell
+npm --prefix frontend run build
+backend\.venv\Scripts\python.exe -m compileall -q backend\app backend\scripts
+git status
+```
+
+## Data and Attribution
+
+OpenStreetMap data is © OpenStreetMap contributors and is used under the Open Database License. Keep the attribution visible when using the map.
+
+This project is a hackathon prototype.

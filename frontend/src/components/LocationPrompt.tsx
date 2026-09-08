@@ -4,10 +4,9 @@
  * First-run overlay shown BEFORE the map boots. Explains why we need the
  * location, then offers two paths:
  *   1. "Use my location" -> browser Geolocation permission prompt
- *   2. "Guest · Pune demo" -> instantly continues with the fallback centre
  *
- * If the user denies/times-out, the app silently falls back to Pune and
- * drops a small notice chip on the map.
+ * If the user denies/times-out, the prompt stays visible. The app never
+ * invents a location or silently selects a default city.
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
@@ -16,7 +15,6 @@ import {
   Gauge,
   Loader2,
   MapPin,
-  Navigation,
   Radar,
   Zap,
 } from 'lucide-react';
@@ -32,8 +30,7 @@ const FEATURES = [
 ];
 
 export default function LocationPrompt() {
-  const { status, coords, error, requestLocation, fallbackLocation } =
-    useGeolocation();
+  const { status, coords, error, requestLocation } = useGeolocation();
   const initLocation = useStore((s) => s.initLocation);
 
   // React to the geolocation state machine.
@@ -42,14 +39,7 @@ export default function LocationPrompt() {
       initLocation(coords);
       return;
     }
-    if (status === 'error') {
-      // Denied / timeout -> automatic Pune fallback with an explanatory note.
-      initLocation(
-        fallbackLocation(),
-        error ? `${error} Showing the Pune demo region instead.` : null,
-      );
-    }
-  }, [status, coords, error, initLocation, fallbackLocation]);
+  }, [status, coords, initLocation]);
 
   const busy = status === 'loading';
 
@@ -112,19 +102,6 @@ export default function LocationPrompt() {
             )}
           </button>
 
-          <button
-            onClick={() =>
-              initLocation(
-                fallbackLocation(),
-                'Geolocation skipped — showing the Pune demo region.',
-              )
-            }
-            disabled={busy}
-            className="fw-focus flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-5 py-3 text-[15px] font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <Navigation className="size-4.5 text-slate-500" strokeWidth={2} />
-            Guest · Pune demo centre
-          </button>
         </div>
 
         <AnimatePresence>
@@ -134,7 +111,7 @@ export default function LocationPrompt() {
               animate={{ opacity: 1 }}
               className="mt-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm font-medium text-danger-dark"
             >
-              {error} We’ll use the demo centre.
+              {error} Allow location access to continue.
             </motion.p>
           )}
         </AnimatePresence>

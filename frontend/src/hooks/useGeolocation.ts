@@ -6,14 +6,13 @@
  *
  *   idle -> loading -> success | error
  *
- * If the user denies (or the lookup fails/timeouts) the caller is expected
- * to fall back to the default Pune city centre — see App.tsx.
+ * If the user denies (or the lookup fails/timeouts), the caller keeps the
+ * location prompt visible. No coordinates are invented or defaulted.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { UserLocation } from '../types';
-import { resolveEnvCenter } from '../utils/constants';
 
 export type GeoStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -25,8 +24,6 @@ export interface UseGeolocationResult {
   error: string | null;
   /** Trigger the browser permission prompt + GPS fix. */
   requestLocation: () => void;
-  /** Build the guaranteed-to-work fallback centre (Pune). */
-  fallbackLocation: () => UserLocation;
 }
 
 export function useGeolocation(): UseGeolocationResult {
@@ -36,19 +33,6 @@ export function useGeolocation(): UseGeolocationResult {
   const requestId = useRef(0);
 
   useEffect(() => () => { requestId.current += 1; }, []);
-
-  const fallbackLocation = useCallback<UseGeolocationResult['fallbackLocation']>(
-    () => {
-      const center = resolveEnvCenter();
-      return {
-        lat: center.lat,
-        lng: center.lng,
-        source: 'fallback',
-        label: 'Pune · Demo Region',
-      };
-    },
-    [],
-  );
 
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
@@ -89,5 +73,5 @@ export function useGeolocation(): UseGeolocationResult {
     );
   }, []);
 
-  return { status, coords, error, requestLocation, fallbackLocation };
+  return { status, coords, error, requestLocation };
 }

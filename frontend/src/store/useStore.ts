@@ -30,7 +30,7 @@ interface FuelStore {
 
   // ---- geolocation ----
   location: UserLocation | null;
-  /** Transient UI note, e.g. "location denied — using Pune demo". */
+  /** Transient UI note for live location and data-source status. */
   notice: string | null;
   /** Where the current station cloud came from. */
   dataSource: StationSource;

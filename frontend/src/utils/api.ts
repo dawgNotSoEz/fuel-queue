@@ -135,7 +135,7 @@ export async function fetchStationsFromApi({
   const body = await fetchJson<{ stations: ApiStationRow[] }>(
     `/api/stations?${params.toString()}`,
   );
-  const center: UserLocation = { lat, lng, source: 'fallback', label: 'API' };
+  const center: UserLocation = { lat, lng, source: 'user', label: 'API' };
   return (body.stations ?? []).map((row) => toStation(row, center));
 }
 
