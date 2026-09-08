@@ -24,6 +24,7 @@ import { MOCK_STATION_COUNTS, SEARCH_RADIUS_M } from './constants';
 
 /** Public Overpass mirrors; try in order until one responds. */
 const MIRRORS = [
+  'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
