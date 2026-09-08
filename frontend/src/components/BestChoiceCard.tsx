@@ -12,6 +12,7 @@ import { Award, Clock, Fuel, MapPin, Navigation, Zap } from 'lucide-react';
 import { selectVisibleStations, useStore } from '../store/useStore';
 import type { Station } from '../types';
 import { formatMinutes } from '../utils/geo';
+import { openGoogleMapsDirections } from '../utils/navigation';
 
 /** Proportion bars: how much of the total time is driving vs waiting. */
 function TimeSplit({ station }: { station: Station }) {
@@ -38,6 +39,7 @@ export default function BestChoiceCard() {
   const filter = useStore((s) => s.filter);
   const selectStation = useStore((s) => s.selectStation);
   const selectedStationId = useStore((s) => s.selectedStationId);
+  const location = useStore((s) => s.location);
 
   const visible = selectVisibleStations(stations, filter);
   const best =
@@ -104,7 +106,17 @@ export default function BestChoiceCard() {
                   <Zap className="size-4 text-brand" strokeWidth={2} />
                   {selectedStationId === best.id ? 'Showing' : 'View pin'}
                 </button>
-                <button className="fw-focus flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand py-2.5 text-xs font-bold text-white transition hover:bg-brand-dark">
+                <button
+                  onClick={() => {
+                    if (location) {
+                      openGoogleMapsDirections(location, {
+                        lat: best.latitude,
+                        lng: best.longitude,
+                      });
+                    }
+                  }}
+                  className="fw-focus flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand py-2.5 text-xs font-bold text-white transition hover:bg-brand-dark"
+                >
                   <Navigation className="size-4" strokeWidth={2} /> Navigate
                 </button>
               </div>

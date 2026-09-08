@@ -15,14 +15,10 @@ import { create } from 'zustand';
 
 import type { FuelType, MockUser, Station, UserLocation } from '../types';
 import { fetchStationsFromApi } from '../utils/api';
-import {
-  applyLiveTick,
-  evaluateStations,
-  generateMockStations,
-} from '../utils/mockDataGenerator';
+import { applyLiveTick, evaluateStations } from '../utils/mockDataGenerator';
 import { fetchNearbyStations } from '../utils/overpassApi';
 
-export type StationSource = 'api' | 'live' | 'simulated' | null;
+export type StationSource = 'api' | 'live' | null;
 
 interface FuelStore {
   // ---- auth (mock until Phase 3) ----
@@ -117,7 +113,7 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
 
     void (async () => {
       let stations: Station[] = [];
-      let dataSource: Exclude<StationSource, null> = 'simulated';
+      let dataSource: Exclude<StationSource, null> = 'live';
 
       // 1) FastAPI backend (Phase 2 primary source).
       try {
@@ -146,12 +142,6 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
         }
       }
 
-      // 3) Fallback: realistic simulated feed that "acts live".
-      if (stations.length === 0) {
-        stations = generateMockStations(location);
-        dataSource = 'simulated';
-      }
-
       // Ignore the result if a newer initLocation superseded this one.
       if (ticket !== initToken) return;
 
@@ -162,9 +152,9 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
         notice:
           dataSource === 'api'
             ? notice
-            : dataSource === 'live'
+            : stations.length > 0
               ? 'No demo stations here — showing real nearby stations from OpenStreetMap.'
-              : 'No stations found near this location — showing a simulated demo feed around you.',
+              : 'No real stations found within 10 km of your location. Try moving the map or check again later.',
       }));
     })();
   },

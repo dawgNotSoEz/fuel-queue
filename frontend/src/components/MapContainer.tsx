@@ -176,12 +176,8 @@ function MapReporter({ onMapReady }: { onMapReady: (m: L.Map) => void }) {
 function LiveChip() {
   const dataSource = useStore((s) => s.dataSource);
   const live = dataSource === 'api' || dataSource === 'live';
-  const label = live
-    ? 'Live feed'
-    : dataSource === 'simulated'
-      ? 'Simulated feed'
-      : 'Connecting…';
-  const dot = live ? 'text-success' : dataSource === 'simulated' ? 'text-warn' : 'text-slate-400';
+  const label = live ? 'Real station feed' : 'Connecting…';
+  const dot = live ? 'text-success' : 'text-slate-400';
   return (
     <div className="pointer-events-none flex items-center gap-2 rounded-full border border-line bg-white px-3.5 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-600 shadow-card">
       <Radio className={`size-3.5 ${dot}`} />

@@ -12,6 +12,7 @@ import {
   Clock,
   Fuel,
   MapPin,
+  Navigation,
   PlugZap,
   Sun,
   Timer,
@@ -22,6 +23,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { FuelType, PressureLevel, Station } from '../types';
 import { formatMinutes } from '../utils/geo';
+import { openGoogleMapsDirections } from '../utils/navigation';
 import {
   computeHealthScore,
   computeTimeSaving,
@@ -74,6 +76,7 @@ export default function StationInfoWindow({ station }: Props) {
   const stations = useStore((st) => st.stations);
   const lastSimTick = useStore((st) => st.lastSimTick);
   const dataSource = useStore((st) => st.dataSource);
+  const location = useStore((st) => st.location);
   const peers = stations.filter((st) => st.type === s.type);
   const health = computeHealthScore(s, peers);
   const saving = computeTimeSaving(s, peers);
@@ -242,7 +245,7 @@ export default function StationInfoWindow({ station }: Props) {
         )}
 
         <span className="ml-auto flex items-center gap-2 text-xs font-medium">
-          {/* Freshness — always visible, signals the live/simulated feed */}
+          {/* Freshness — displayed station data remains tied to the real source. */}
           <span
             className={`inline-flex items-center gap-1 ${
               dataSource === 'live' || dataSource === 'api'
@@ -252,7 +255,7 @@ export default function StationInfoWindow({ station }: Props) {
             title={
               dataSource === 'live' || dataSource === 'api'
                 ? 'Live data refreshed every 5s'
-                : 'Simulated feed refreshed every 5s'
+                : 'Waiting for real station data'
             }
           >
             <Activity className="size-3.5" />
@@ -268,6 +271,20 @@ export default function StationInfoWindow({ station }: Props) {
           )}
         </span>
       </div>
+      <button
+        onClick={() => {
+          if (location) {
+            openGoogleMapsDirections(location, {
+              lat: s.latitude,
+              lng: s.longitude,
+            });
+          }
+        }}
+        className="fw-focus mx-4 mb-4 flex w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2.5 text-xs font-bold text-white transition hover:bg-brand-dark"
+      >
+        <Navigation className="size-4" strokeWidth={2} />
+        Get directions in Google Maps
+      </button>
     </div>
   );
 }
