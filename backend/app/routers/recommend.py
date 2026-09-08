@@ -21,7 +21,7 @@ from fastapi import APIRouter, Query
 from .. import ml
 from ..geo import drive_time_minutes, haversine_km
 from ..simulator import simulator
-from .stations import SERVED_RADIUS_KM
+from .stations import DEFAULT_RADIUS_KM
 
 router = APIRouter(tags=["recommend"])
 
@@ -54,7 +54,7 @@ async def recommend(
         for s in simulator.all()
         if s["type"] == type
         and haversine_km(lat, lng, s["latitude"], s["longitude"])
-        <= SERVED_RADIUS_KM
+        <= DEFAULT_RADIUS_KM
     ]
 
     enriched: list[dict[str, Any]] = []

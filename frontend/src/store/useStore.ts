@@ -75,7 +75,7 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
 
   setUser: (user) => set({ user }),
 
-  setFilter: (filter) =>
+  setFilter: (filter) => {
     set((s) => {
       // A selected pin of the other fuel type no longer exists on screen.
       const keepSelection =
@@ -87,8 +87,10 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
         filter,
         selectedStationId: keepSelection ? s.selectedStationId : null,
       };
-    }),
-
+    });
+    // The backend is filtered by fuel type, so refetch immediately on toggle.
+    get().runSimulationTick();
+  },
   toggleHideBroken: () =>
     set((s) => {
       // Turning the filter ON may hide the currently selected broken pin.
@@ -125,6 +127,7 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
         const apiRows = await fetchStationsFromApi({
           lat: location.lat,
           lng: location.lng,
+          type: get().filter,
         });
         if (apiRows.length > 0) {
           stations = apiRows;
@@ -182,6 +185,7 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
           const fresh = await fetchStationsFromApi({
             lat: location.lat,
             lng: location.lng,
+            type: get().filter,
           });
           if (ticket !== tickToken) return;
           set(() => ({
