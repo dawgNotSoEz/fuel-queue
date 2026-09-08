@@ -88,6 +88,35 @@ uvicorn app.main:app --reload --port 8000
 # -> http://localhost:8000  { "status": "ok" }
 ```
 
+## ▲ Deploying the frontend to Vercel
+
+The frontend is a **fully static React app** — maps come from OpenStreetMap and
+need **no API keys**, so it deploys to Vercel as-is. Without a backend URL it
+automatically falls back to **real nearby stations from OpenStreetMap** and then
+to the built-in live-feel simulator, so the demo always works.
+
+1. Push this repo to GitHub, then go to **vercel.com → New Project → Import** the
+   `fuel-queue` repo.
+2. **Framework Preset:** auto-detects **Vite** (frontend `package.json`).
+3. **Root Directory:** set to **`frontend`** (this is a monorepo — the backend
+   and docker files live in `backend/` / root and are ignored by the build).
+4. Build command `npm run build`, output `dist` — defaults are fine.
+5. (Optional) **Environment Variable:** add `VITE_API_URL` pointing at a hosted
+   FastAPI backend if you run the AI layer somewhere (Render / Railway / a VPS).
+   Leave it unset for the pure frontend demo.
+
+> **Why Root Directory = `frontend`?** The repo root has no `package.json`;
+> `vercel.json` inside `frontend/` provides the SPA rewrite. The Python backend
+> (FastAPI + XGBoost + TimescaleDB) is not Vercel-friendly — it uses a
+> background simulator thread, Postgres, and `.pkl` model files — so run it
+> locally with Docker for the full demo, or host it separately.
+
+CLI equivalent:
+```bash
+npm i -g vercel
+vercel --cwd frontend --prod
+```
+
 ## 🧪 Verifying the Map
 1. `npm run dev` — tiles load straight from OpenStreetMap (internet required;
    attribution stays visible on the map).

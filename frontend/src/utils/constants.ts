@@ -23,10 +23,20 @@ export const SIMULATION_INTERVAL_MS = 5_000;
 /** How many stations we generate / cap per fuel type. */
 export const MOCK_STATION_COUNTS = { cng: 18, ev: 16 } as const;
 
-/** Backend base URL (override with VITE_API_URL). */
-export const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || 'http://localhost:8000'
-).replace(/\/+$/, '');
+/**
+ * Backend base URL (override with VITE_API_URL).
+ * Local dev defaults to http://localhost:8000; deployed origins (Vercel)
+ * have no backend, so this resolves to "" and the app falls back to
+ * OpenStreetMap + the local simulator.
+ */
+export const API_BASE_URL = ((): string => {
+  const fromEnv = import.meta.env.VITE_API_URL;
+  if (fromEnv) return fromEnv;
+  const { hostname } = window.location;
+  const isLocalHost =
+    hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  return isLocalHost ? 'http://localhost:8000' : '';
+})().replace(/\/+$/, '');
 
 /**
  * Fallback centre resolved from the shared root `.env`

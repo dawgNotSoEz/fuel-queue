@@ -9,12 +9,31 @@
 import type { FuelType, PressureLevel, Station, UserLocation } from '../types';
 import { haversineKm, round } from './geo';
 
-export const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || 'http://localhost:8000'
-).replace(/\/+$/, '');
+/**
+ * Backend base URL.
+ * - Override with `VITE_API_URL` (e.g. a hosted FastAPI instance).
+ * - Local default: http://localhost:8000 — the dev machine running the backend.
+ * - Deployed origins (Vercel & friends) have NO reachable backend, so this
+ *   resolves to "" and fetchJson() throws immediately → the app falls back to
+ *   real OpenStreetMap stations + the local live-feel simulator.
+ */
+export const API_BASE_URL = ((): string => {
+  const fromEnv = import.meta.env.VITE_API_URL;
+  if (fromEnv) return fromEnv;
+  const { hostname } = window.location;
+  const isLocalHost =
+    hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  return isLocalHost ? 'http://localhost:8000' : '';
+})().replace(/\/+$/, '');
 
 /** Abort after N ms so a dead backend fails fast into the local fallback. */
 async function fetchJson<T>(path: string, timeoutMs = 6_000): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new Error('FUELWISE backend not configured (set VITE_API_URL).');
+  }
+  if (!API_BASE_URL) {
+    throw new Error('FUELWISE backend not configured (set VITE_API_URL).');
+  }
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
