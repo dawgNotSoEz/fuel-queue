@@ -18,8 +18,12 @@ import os
 from pathlib import Path
 from typing import Any
 
-import joblib
-import numpy as np
+try:
+    import joblib
+    import numpy as np
+except ImportError:  # Lightweight Vercel runtime uses the heuristic fallback.
+    joblib = None  # type: ignore[assignment]
+    np = None  # type: ignore[assignment]
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
 
@@ -53,6 +57,9 @@ _metrics: dict[str, float] = {}
 def load_models() -> bool:
     """Load model + encoders + metrics. Idempotent; never raises."""
     global _model, _encoders, _metrics
+    if joblib is None:
+        print("[fuelwise] ML dependencies unavailable — heuristic fallback active")
+        return False
     try:
         _model = joblib.load(XGB_PATH)
         _encoders = joblib.load(ENC_PATH)
@@ -125,7 +132,7 @@ def predict_wait(
     weather = weather.lower() if weather in WEATHER_LEVELS or weather.lower() in WEATHER_LEVELS else "clear"
     pressure = pressure.lower() if pressure in PRESSURE_LEVELS or pressure.lower() in PRESSURE_LEVELS else "medium"
 
-    if _model is not None:
+    if _model is not None and np is not None:
         try:
             row = np.array([[
                 float(hour),
