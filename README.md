@@ -97,17 +97,17 @@ to the built-in live-feel simulator, so the demo always works.
 
 1. Push this repo to GitHub, then go to **vercel.com → New Project → Import** the
    `fuel-queue` repo.
-2. **Framework Preset:** auto-detects **Vite** (frontend `package.json`).
-3. **Root Directory:** set to **`frontend`** (this is a monorepo — the backend
-   and docker files live in `backend/` / root and are ignored by the build).
-4. Build command `npm run build`, output `dist` — defaults are fine.
-5. (Optional) **Environment Variable:** add `VITE_API_URL` pointing at a hosted
+2. Keep the **repository root** as the project root. The root `vercel.json`
+   declares the Vite frontend and FastAPI backend services and routes `/api/*`
+   to the backend.
+3. **Framework Preset:** Vite. Build command and output directory are declared
+   by the frontend service (`npm run build` → `dist`).
+4. (Optional) **Environment Variable:** add `VITE_API_URL` pointing at a hosted
    FastAPI backend if you run the AI layer somewhere (Render / Railway / a VPS).
    Leave it unset for the pure frontend demo.
 
-> **Why Root Directory = `frontend`?** The repo root has no `package.json`;
-> `vercel.json` inside `frontend/` provides the SPA rewrite. The Python backend
-> (FastAPI + XGBoost + TimescaleDB) is not Vercel-friendly — it uses a
+> **Deployment note:** The Python backend is exposed through `backend/api/index.py`.
+> FastAPI + XGBoost + TimescaleDB is not ideal for Vercel — it uses a
 > background simulator thread, Postgres, and `.pkl` model files — so run it
 > locally with Docker for the full demo, or host it separately.
 

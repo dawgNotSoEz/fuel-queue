@@ -13,8 +13,8 @@ import { haversineKm, round } from './geo';
  * Backend base URL.
  * - Override with `VITE_API_URL` (e.g. a hosted FastAPI instance).
  * - Local default: http://localhost:8000 — the dev machine running the backend.
- * - Deployed origins (Vercel & friends) have NO reachable backend, so this
- *   resolves to "" and fetchJson() throws immediately → the app falls back to
+ * - Deployed origins use a same-origin `/api` rewrite from the root
+ *   `vercel.json`; if that backend is unavailable, the app falls back to
  *   real OpenStreetMap stations + the local live-feel simulator.
  */
 export const API_BASE_URL = ((): string => {
@@ -28,12 +28,6 @@ export const API_BASE_URL = ((): string => {
 
 /** Abort after N ms so a dead backend fails fast into the local fallback. */
 async function fetchJson<T>(path: string, timeoutMs = 6_000): Promise<T> {
-  if (!API_BASE_URL) {
-    throw new Error('FUELWISE backend not configured (set VITE_API_URL).');
-  }
-  if (!API_BASE_URL) {
-    throw new Error('FUELWISE backend not configured (set VITE_API_URL).');
-  }
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
