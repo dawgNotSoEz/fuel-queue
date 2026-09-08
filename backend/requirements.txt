@@ -1,0 +1,26 @@
+# ==================================================================
+# FUELWISE — Backend (Phase 2: FastAPI + XGBoost + TimescaleDB)
+# ==================================================================
+
+# ---------- Web framework ----------
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+
+# ---------- Database (async) ----------
+sqlalchemy>=2.0,<3
+asyncpg>=0.29,<1
+psycopg2-binary>=2.9,<3        # kept for admin/psql-style fallbacks
+greenlet>=3.0,<4               # required by SQLAlchemy async on some platforms
+
+# ---------- Config / validation ----------
+python-dotenv>=1.0,<2
+pydantic>=2.7,<3
+pydantic-settings>=2.3,<3
+
+# ---------- AI / ML ----------
+numpy>=1.26,<3
+pandas>=2.2,<3
+scikit-learn>=1.4,<2
+xgboost>=2.0,<3
+joblib>=1.3,<2
+

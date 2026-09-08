@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==================================================================
+   FUELWISE — accessible "warm & clear" light theme.
+   High contrast for elderly drivers: off-white backgrounds, deep-blue
+   primary accents, dark-slate text (never pure black), cool-gray borders.
+   ================================================================== */
+
+:root {
+  --canvas: #f8fafc;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--canvas);
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+/* Brand-blue selection */
+::selection {
+  background: #1a56db;
+  color: #ffffff;
+}
+
+/* Slim, unobtrusive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ==================================================================
+   React Leaflet / OpenStreetMap — light, high-legibility treatment.
+   Natural OSM tiles (color) keep streets clear for older drivers.
+   ================================================================== */
+.fw-map .leaflet-container {
+  background: #e2e8f0;
+  font-family: inherit;
+}
+
+/* Keep Leaflet's top controls (zoom) below the fixed 64px navbar. */
+.fw-map .leaflet-top {
+  top: 78px;
+}
+
+/* --- Zoom control — light theme with generous 38px tap targets --- */
+.fw-map .leaflet-bar {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+.fw-map .leaflet-bar a,
+.fw-map .leaflet-touch .leaflet-bar a {
+  background: #ffffff;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
+  font-size: 18px;
+}
+.fw-map .leaflet-bar a:hover {
+  background: #eff6ff;
+  color: #1a56db;
+}
+.fw-map .leaflet-bar a.leaflet-disabled {
+  background: #f8fafc;
+  color: #cbd5e1;
+}
+
+/* --- Attribution — subtle, legible, keeps required OSM credit --- */
+.fw-map .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.9);
+  color: #64748b;
+  font-size: 10px;
+  padding: 2px 8px;
+}
+.fw-map .leaflet-control-attribution a {
+  color: #1a56db;
+}
+
+/* ==================================================================
+   "You are here" dot — brand-blue centre + soft pulse
+   ================================================================== */
+.fw-user-dot {
+  background: transparent;
+  border: none;
+}
+.fw-user-dot span {
+  position: absolute;
+  inset: 4px;
+  border-radius: 9999px;
+  background: #1a56db;
+  box-shadow: 0 0 0 3px #ffffff;
+}
+.fw-user-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(26, 86, 219, 0.75);
+  animation: fw-ping 2s ease-out infinite;
+}
+@keyframes fw-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* ==================================================================
+   Reusable component utilities
+   ================================================================== */
+@layer components {
+  /* Frosted white card used by floating chips/cards */
+  .fw-glass {
+    @apply border border-line bg-white/90 shadow-card backdrop-blur-xl;
+  }
+}
+
+@layer utilities {
+  /* Accessible focus ring for all interactive controls */
+  .fw-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+  }
+}
+

@@ -1,0 +1,96 @@
+# ==================================================================
+# FUELWISE — Infrastructure
+#   - PostgreSQL + TimescaleDB (time-series queue telemetry)
+#   - pgAdmin (DB browser)
+#   - Optional "app" profile -> builds the FastAPI + React services
+#
+# Usage:
+#   docker compose up -d db pgadmin            # just the databases
+#   docker compose --profile app up --build    # everything
+# ==================================================================
+
+services:
+  # ------------------------------------------------------------------
+  # TimescaleDB — PostgreSQL with the time-series extension installed.
+  # Two databases are provisioned by docker/postgres/init/01-init.sql:
+  #   fuelwise_db  -> relational core (stations, users, transactions)
+  #   fuelwise_tsdb-> time-series hypertables (queue wait telemetry)
+  # ------------------------------------------------------------------
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: fuelwise-timescale
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fuelwise
+      POSTGRES_PASSWORD: fuelwise_pass
+      POSTGRES_DB: fuelwise_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - fuelwise_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fuelwise -d fuelwise_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ------------------------------------------------------------------
+  # pgAdmin — visual database administration at http://localhost:5050
+  # ------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fuelwise-pgadmin
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@fuelwise.dev
+      PGADMIN_DEFAULT_PASSWORD: fuelwise_admin
+    ports:
+      - "5050:80"
+
+  # ------------------------------------------------------------------
+  # PHASE 2 — FastAPI backend (enabled via --profile app)
+  # NOTE: boots fine without the DB (in-memory simulator cache + model).
+  # ------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+    container_name: fuelwise-api
+    profiles: ["app"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      # Paths are relative to /app inside the container.
+      FUELWISE_MODELS_DIR: /app/models
+      MODEL_PATH: /app/models/xgboost_model.pkl
+    ports:
+      - "8000:8000"
+    volumes:
+      # Share the host-trained model artifacts (train before `up`):
+      #   cd backend && python scripts/train_model.py
+      - ./backend/models:/app/models
+
+  # ------------------------------------------------------------------
+  # PHASE 1 — React frontend served by nginx (enabled via --profile app)
+  # Maps are free (React Leaflet + OpenStreetMap) — no API key needed.
+  # ------------------------------------------------------------------
+  web:
+    build:
+      context: ./frontend
+    container_name: fuelwise-web
+    profiles: ["app"]
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  fuelwise_pgdata:

@@ -1,0 +1,16 @@
+{
+  "r2": 0.95,
+  "mae": 4.071,
+  "within_20pct": 0.896,
+  "features": [
+    "hour",
+    "day_of_week",
+    "is_weekend",
+    "historical_avg_wait",
+    "station_capacity",
+    "weather_condition",
+    "pressure_level"
+  ],
+  "records": 10000,
+  "trained_at": "2026-09-08T12:55:47+00:00"
+}

@@ -1,0 +1,41 @@
+# ---------- Environment & secrets ----------
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ---------- Node / Frontend ----------
+node_modules/
+frontend/dist/
+dist/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---------- Python / Backend ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# ---------- ML artifacts (re-train with backend/scripts/train_model.py) ----------
+**/models/*.pkl
+**/*.joblib
+data/*.csv
+
+# ---------- Docker / Postgres ----------
+pgdata/
+postgres-data/
+
+# ---------- Editor / OS ----------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
