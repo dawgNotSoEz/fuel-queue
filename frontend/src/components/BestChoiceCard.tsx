@@ -42,14 +42,88 @@ export default function BestChoiceCard() {
   const location = useStore((s) => s.location);
 
   const visible = selectVisibleStations(stations, filter);
+  const selected = visible.find((s) => s.id === selectedStationId);
   const best =
     visible.find((s) => s.is_best_choice) ??
     visible
       .filter((s) => s.is_operational)
       .sort((a, b) => a.total_time - b.total_time)[0];
 
+  const navigateToStation = (station: Station) => {
+    if (location) {
+      openGoogleMapsDirections(location, {
+        lat: station.latitude,
+        lng: station.longitude,
+      });
+      return;
+    }
+
+    const destination = `${station.latitude},${station.longitude}`;
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+    window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+  };
+
   return (
-    <div className="pointer-events-none absolute bottom-14 right-3 z-[1200] w-[272px] sm:right-4">
+    <div className="pointer-events-none absolute bottom-14 right-3 z-[1200] flex w-[272px] flex-col gap-2 sm:right-4">
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            key={`selected-${selected.id}`}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.22 }}
+            className="pointer-events-auto overflow-hidden rounded-2xl border border-brand/20 bg-white shadow-pop"
+          >
+            <div className="flex items-center justify-between border-b border-line bg-blue-50 px-3.5 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand">
+                  Your selection
+                </p>
+                <h3 className="truncate text-[14px] font-bold leading-tight text-ink">
+                  {selected.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => selectStation(null)}
+                className="fw-focus shrink-0 rounded-full px-1.5 py-1 text-xs font-semibold text-slate-400 transition hover:bg-white hover:text-ink"
+                title="Clear selected station"
+                aria-label="Clear selected station"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-3.5 py-3">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <div>
+                  <p className="text-slate-500">Wait</p>
+                  <p className="font-bold text-ink">{formatMinutes(selected.current_wait_time)}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Drive</p>
+                  <p className="font-bold text-ink">{selected.distance_km.toFixed(1)} km</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Total time</p>
+                  <p className="font-bold text-ink">{formatMinutes(selected.total_time)}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Price</p>
+                  <p className="font-bold text-ink">₹{selected.price}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigateToStation(selected)}
+                className="fw-focus mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand py-2.5 text-xs font-bold text-white transition hover:bg-brand-dark"
+              >
+                <Navigation className="size-4" strokeWidth={2} />
+                Get directions
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {best ? (
           <motion.div
@@ -107,14 +181,7 @@ export default function BestChoiceCard() {
                   {selectedStationId === best.id ? 'Showing' : 'View pin'}
                 </button>
                 <button
-                  onClick={() => {
-                    if (location) {
-                      openGoogleMapsDirections(location, {
-                        lat: best.latitude,
-                        lng: best.longitude,
-                      });
-                    }
-                  }}
+                  onClick={() => navigateToStation(best)}
                   className="fw-focus flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand py-2.5 text-xs font-bold text-white transition hover:bg-brand-dark"
                 >
                   <Navigation className="size-4" strokeWidth={2} /> Navigate

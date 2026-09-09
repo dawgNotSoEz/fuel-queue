@@ -1,0 +1,8 @@
+{
+  "name": "fuelwise",
+  "private": true,
+  "scripts": {
+    "typecheck": "npm --prefix frontend run typecheck",
+    "build": "npm --prefix frontend run build"
+  }
+}
