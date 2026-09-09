@@ -15,7 +15,11 @@ import { create } from 'zustand';
 
 import type { FuelType, MockUser, Station, UserLocation } from '../types';
 import { fetchStationsFromApi } from '../utils/api';
-import { applyLiveTick, evaluateStations } from '../utils/mockDataGenerator';
+import {
+  applyLiveTick,
+  evaluateStations,
+  generateMockStations,
+} from '../utils/mockDataGenerator';
 import { fetchNearbyStations } from '../utils/overpassApi';
 
 export type StationSource = 'api' | 'live' | null;
@@ -145,16 +149,21 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
       // Ignore the result if a newer initLocation superseded this one.
       if (ticket !== initToken) return;
 
+      const finalStations =
+        stations.length > 0
+          ? evaluateStations(stations)
+          : generateMockStations(location);
+
       set(() => ({
-        stations: evaluateStations(stations),
-        dataSource,
+        stations: finalStations,
+        dataSource: stations.length > 0 ? dataSource : 'live',
         lastSimTick: Date.now(),
         notice:
           dataSource === 'api'
             ? notice
             : stations.length > 0
               ? 'No demo stations here — showing real nearby stations from OpenStreetMap.'
-              : 'No real stations found within 10 km of your location. Try moving the map or check again later.',
+              : 'No real stations found within 10 km of your location. Showing simulation data instead.',
       }));
     })();
   },
@@ -185,11 +194,17 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
     }
 
     // Simulated / live-OSM source → local random-walk feed.
-    set((s) =>
-      s.stations.length > 0
-        ? { stations: applyLiveTick(s.stations), lastSimTick: Date.now() }
-        : {},
-    );
+    set((s) => {
+      const nextStations =
+        s.stations.length > 0
+          ? applyLiveTick(s.stations)
+          : generateMockStations(location);
+
+      return {
+        stations: nextStations,
+        lastSimTick: Date.now(),
+      };
+    });
   },
 
   clearNotice: () => set({ notice: null }),
