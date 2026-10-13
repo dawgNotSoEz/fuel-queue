@@ -6,7 +6,16 @@
  * contract here.
  */
 
-import type { FuelType, PressureLevel, Station, UserLocation } from '../types';
+import type {
+  BusynessProfile,
+  FuelType,
+  HourWindow,
+  PressureLevel,
+  Station,
+  UserLocation,
+  WeatherCondition,
+} from '../types';
+import type { CrowdMix } from './crowdContext';
 import { haversineKm, round } from './geo';
 
 /**
@@ -111,6 +120,11 @@ export function toStation(row: ApiStationRow, center: UserLocation): Station {
     total_time: 0, // recomputed by evaluateStations()
     is_best_choice: false,
     is_worst_choice: false,
+    capacity: typeof row.capacity === 'number' ? row.capacity : undefined,
+    historical_avg_wait:
+      typeof row.historical_avg_wait === 'number'
+        ? row.historical_avg_wait
+        : undefined,
   };
 }
 
@@ -186,5 +200,159 @@ export async function apiHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ----------------------------------------------------------------------
+// Popular times — GET /api/busyness
+//
+// The backend builds the hourly histogram with the ML model
+// (hour + weekday + weather + pressure + capacity + past-data mean) and
+// returns the exact shape the UI renders. The local demand-curve model in
+// `utils/busyness.ts` is the offline fallback when this call fails.
+// ----------------------------------------------------------------------
+export interface ApiHourWindow {
+  start: number;
+  end: number;
+}
+
+export interface ApiBusynessRow {
+  station_id?: string | null;
+  /** 0 = Sunday … 6 = Saturday, in the *caller's* local time. */
+  day_of_week: number;
+  /** `weekly[dow][hour]`, 0..100 relative to the station's weekly peak. */
+  weekly: number[][];
+  daily: number[];
+  expected_wait: number[];
+  typical_wait_minutes: number;
+  weekly_peak_minutes: number;
+  peak_hour: number;
+  busiest_window: ApiHourWindow;
+  quiet_window: ApiHourWindow;
+  source?: string;
+  model_ready?: boolean;
+}
+
+const isNumberGrid = (value: unknown, rows: number, cols: number): boolean =>
+  Array.isArray(value) &&
+  value.length === rows &&
+  value.every(
+    (row) =>
+      Array.isArray(row) &&
+      row.length === cols &&
+      row.every((v) => typeof v === 'number' && Number.isFinite(v)),
+  );
+
+const isNumberList = (value: unknown, length: number): boolean =>
+  Array.isArray(value) &&
+  value.length === length &&
+  value.every((v) => typeof v === 'number' && Number.isFinite(v));
+
+const toWindow = (value: unknown, fallback: HourWindow): HourWindow => {
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as ApiHourWindow).start === 'number' &&
+    typeof (value as ApiHourWindow).end === 'number'
+  ) {
+    return { start: (value as ApiHourWindow).start, end: (value as ApiHourWindow).end };
+  }
+  return fallback;
+};
+
+/** The minimum a station must expose for the busyness endpoint. */
+export type BusynessRequestTarget = Pick<Station, 'id' | 'type'> &
+  Partial<Pick<Station, 'capacity' | 'historical_avg_wait'>>;
+
+export interface FetchBusynessOptions {
+  /** Identifies the station to the model (accepts a full `Station`). */
+  station: BusynessRequestTarget;
+  /** Local time the profile is for. */
+  at: Date;
+  /** Day to build the histogram for (0 = Sunday). Defaults to `at.getDay()`. */
+  dayOfWeek?: number;
+  weather?: WeatherCondition | null;
+  /**
+   * Real OpenStreetMap crowd mix around the station (utils/crowdContext.ts).
+   * The backend mirrors the frontend's crowd model, so sending the mix keeps
+   * the API histogram station-specific instead of one shared city curve.
+   */
+  crowd?: CrowdMix | null;
+  /** How crowded that area is (0.55 … 1.75). */
+  crowdIntensity?: number | null;
+}
+
+/** Compact `category:weight` encoding for the `crowd` query parameter. */
+function serialiseCrowd(mix: CrowdMix): string {
+  return Object.entries(mix)
+    .filter(([, weight]) => weight > 0.01)
+    .map(([category, weight]) => `${category}:${weight.toFixed(3)}`)
+    .join(',');
+}
+
+/**
+ * Fetch the model-driven busyness profile for one station.
+ * Returns `null` when the backend is down or the payload is unusable, so the
+ * caller can fall back to the local crowd-curve model.
+ */
+export async function fetchBusynessFromApi({
+  station,
+  at,
+  dayOfWeek,
+  weather,
+  crowd,
+  crowdIntensity,
+}: FetchBusynessOptions): Promise<BusynessProfile | null> {
+  const day = dayOfWeek ?? at.getDay();
+  const params = new URLSearchParams({
+    station_id: station.id,
+    type: station.type,
+    hour: String(at.getHours()),
+    day_of_week: String(day),
+    weather: weather ?? 'clear',
+  });
+  if (station.historical_avg_wait != null) {
+    params.set('historical_avg', String(station.historical_avg_wait));
+  }
+  if (station.capacity != null) {
+    params.set('capacity', String(station.capacity));
+  }
+  if (crowd) {
+    const encoded = serialiseCrowd(crowd);
+    if (encoded) params.set('crowd', encoded);
+  }
+  if (crowdIntensity != null) {
+    params.set('crowd_intensity', crowdIntensity.toFixed(2));
+  }
+
+  let row: ApiBusynessRow;
+  try {
+    row = await fetchJson<ApiBusynessRow>(`/api/busyness?${params.toString()}`);
+  } catch {
+    return null;
+  }
+
+  if (
+    !isNumberGrid(row.weekly, 7, 24) ||
+    !isNumberList(row.daily, 24) ||
+    !isNumberList(row.expected_wait, 24) ||
+    typeof row.typical_wait_minutes !== 'number' ||
+    typeof row.weekly_peak_minutes !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    weekly: row.weekly,
+    daily: row.daily,
+    expectedWait: row.expected_wait,
+    typicalWaitMinutes: row.typical_wait_minutes,
+    peakWaitMinutes: row.weekly_peak_minutes,
+    peakHour:
+      typeof row.peak_hour === 'number' ? row.peak_hour : row.daily.indexOf(Math.max(...row.daily)),
+    busiestWindow: toWindow(row.busiest_window, { start: 17, end: 19 }),
+    quietWindow: toWindow(row.quiet_window, { start: 14, end: 16 }),
+    dayOfWeek: typeof row.day_of_week === 'number' ? row.day_of_week : day,
+    source: 'ml',
+  };
 }
 

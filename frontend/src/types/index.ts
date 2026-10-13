@@ -56,6 +56,86 @@ export interface Station {
   is_best_choice: boolean;
   /** Highest distance + wait among operational stations (dashed gray stroke). */
   is_worst_choice: boolean;
+  /** Bays/pumps available — used by the busyness + prediction models. */
+  capacity?: number;
+  /**
+   * Past-data anchor: the rolling mean wait for this station (minutes).
+   * Crowd reports on the backend keep it up to date, so the popular-times
+   * histogram is always derived from observed history, never from noise.
+   */
+  historical_avg_wait?: number;
+}
+
+// ----------------------------------------------------------------------
+// Popular times (Google-Maps-style busyness)
+// ----------------------------------------------------------------------
+
+/** How busy a station is right now, relative to its own past peak. */
+export type BusynessLevel = 'not-busy' | 'moderate' | 'busy' | 'peak';
+
+/** Live busyness reading for a single station. */
+export interface LiveBusyness {
+  /** 0..130, where 100 = "as busy as it gets" for this station. */
+  percent: number;
+  level: BusynessLevel;
+  /** Google-style headline, e.g. "Busy". */
+  headline: string;
+  /** Live wait vs the typical wait for this weekday + hour. */
+  comparison: 'less' | 'usual' | 'more';
+  comparisonLabel: string;
+  trend: 'rising' | 'falling' | 'steady';
+  trendLabel: string;
+  /** Live wait right now, minutes. */
+  liveWait: number;
+  /** Typical wait for this weekday + hour, minutes. */
+  expectedWait: number;
+  /** Live wait / typical wait. */
+  ratio: number;
+}
+
+/** A station's weekly busyness profile ("popular times"). */
+export interface BusynessProfile {
+  /** `weekly[dow][hour]` — 0..100 relative to this station's weekly peak. */
+  weekly: number[][];
+  /** The selected day's 24 bars. */
+  daily: number[];
+  /** Typical wait (minutes) for each hour of the selected day. */
+  expectedWait: number[];
+  /** Past-data mean wait for this station, minutes. */
+  typicalWaitMinutes: number;
+  /** Typical wait at the station's weekly peak, minutes. */
+  peakWaitMinutes: number;
+  /** Busiest hour of the selected day (0..23). */
+  peakHour: number;
+  /** Busiest two-hour window of the selected day. */
+  busiestWindow: HourWindow;
+  /** Quietest two-hour window of the selected day. */
+  quietWindow: HourWindow;
+  /** Weekday the profile was built for (0 = Sunday, local time). */
+  dayOfWeek: number;
+  /** 'ml' when the backend model produced it, 'model' for the local curve. */
+  source: 'ml' | 'model';
+}
+
+/** Inclusive-exclusive hour range, e.g. { start: 14, end: 16 } → 2–4 PM. */
+export interface HourWindow {
+  start: number;
+  end: number;
+}
+
+// ----------------------------------------------------------------------
+// Free live context: weather (Open-Meteo)
+// ----------------------------------------------------------------------
+
+export type WeatherCondition = 'clear' | 'cloudy' | 'rain' | 'fog' | 'storm';
+
+export interface WeatherSnapshot {
+  condition: WeatherCondition;
+  label: string;
+  temperatureC: number;
+  windKmh: number;
+  /** Epoch ms of the observation. */
+  observedAt: number;
 }
 
 /** Mock authentication payload used until Phase 3 wiring. */

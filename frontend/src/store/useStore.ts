@@ -13,16 +13,37 @@
 
 import { create } from 'zustand';
 
-import type { FuelType, MockUser, Station, UserLocation } from '../types';
+import type {
+  FuelType,
+  MockUser,
+  Station,
+  UserLocation,
+  WeatherSnapshot,
+} from '../types';
 import { fetchStationsFromApi } from '../utils/api';
+import { forgetAllProfiles } from '../utils/busyness';
+import {
+  clearCrowdIndex,
+  fetchCrowdIndex,
+  setCrowdIndex,
+} from '../utils/crowdContext';
 import {
   applyLiveTick,
   evaluateStations,
   generateMockStations,
 } from '../utils/mockDataGenerator';
 import { fetchNearbyStations } from '../utils/overpassApi';
+import { fetchWeather } from '../utils/weather';
 
 export type StationSource = 'api' | 'live' | null;
+
+/** Loading state of the real "crowd around each station" index (OSM). */
+export type CrowdStatus = 'idle' | 'loading' | 'ready' | 'unavailable';
+
+/** Re-check the free weather feed at most this often. */
+const WEATHER_REFRESH_MS = 10 * 60_000;
+/** Back off this long before retrying an Overpass crowd lookup that failed. */
+const CROWD_RETRY_MS = 5 * 60_000;
 
 interface FuelStore {
   // ---- auth (mock until Phase 3) ----
@@ -45,6 +66,18 @@ interface FuelStore {
   // ---- live simulator / poller ----
   lastSimTick: number;
 
+  // ---- free live context (no API keys anywhere) ----
+  /** Current weather at the driver's position (Open-Meteo). */
+  weather: WeatherSnapshot | null;
+  /**
+   * Real "who is around each pump" index, read from OpenStreetMap: the
+   * category mix, intensity and source count per station id. Drives the
+   * per-station busyness curve (see utils/crowdContext.ts).
+   */
+  crowdStatus: CrowdStatus;
+  /** Bumped whenever the crowd index changes, so views re-derive profiles. */
+  crowdVersion: number;
+
   // ---- actions ----
   setUser: (user: MockUser | null) => void;
   setFilter: (filter: FuelType) => void;
@@ -54,12 +87,20 @@ interface FuelStore {
   initLocation: (location: UserLocation, notice?: string | null) => void;
   /** Poll tick — refresh from API when connected, else local simulation. */
   runSimulationTick: () => void;
+  /** Free live weather for the current position (silent when offline). */
+  loadWeather: (force?: boolean) => void;
+  /** Fetch + score the real crowd sources around the loaded stations. */
+  loadCrowd: (force?: boolean) => void;
   clearNotice: () => void;
 }
 
 /** Guards against overlapping async station fetches (StrictMode remounts). */
 let initToken = 0;
 let tickToken = 0;
+let weatherToken = 0;
+let crowdToken = 0;
+let weatherFetchedAt = 0;
+let crowdRetryAt = 0;
 
 export const useFuelStore = create<FuelStore>()((set, get) => ({
   user: null,
@@ -72,6 +113,10 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
   hideBroken: false,
   selectedStationId: null,
   lastSimTick: Date.now(),
+
+  weather: null,
+  crowdStatus: 'idle',
+  crowdVersion: 0,
 
   setUser: (user) => set({ user }),
 
@@ -106,11 +151,15 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
   initLocation: (location, notice = null) => {
     const ticket = ++initToken;
 
-    // Drop any previous cloud while we look for the real one.
+    // Drop any previous cloud (and its crowd context) while we look around.
+    clearCrowdIndex();
+    forgetAllProfiles();
     set(() => ({
       location,
       stations: [],
       dataSource: null,
+      crowdStatus: 'idle',
+      crowdVersion: 0,
       notice: notice ?? 'Connecting to FUELWISE backend…',
       selectedStationId: null,
     }));
@@ -165,12 +214,21 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
               ? 'No demo stations here — showing real nearby stations from OpenStreetMap.'
               : 'No real stations found within 10 km of your location. Showing simulation data instead.',
       }));
+
+      // Free live context for the same position (both fail silently).
+      get().loadWeather();
+      get().loadCrowd(true);
     })();
   },
 
   runSimulationTick: () => {
     const { dataSource, location } = get();
     if (!location) return;
+
+    // Free live context: both calls are internally rate-limited, so the 5 s
+    // station tick can safely ask for them.
+    get().loadWeather();
+    get().loadCrowd();
 
     // API-connected → poll the backend (it refreshes itself every 5 s).
     if (dataSource === 'api') {
@@ -205,6 +263,52 @@ export const useFuelStore = create<FuelStore>()((set, get) => ({
         lastSimTick: Date.now(),
       };
     });
+  },
+
+  loadWeather: (force = false) => {
+    const { location } = get();
+    if (!location) return;
+    if (!force && Date.now() - weatherFetchedAt < WEATHER_REFRESH_MS) return;
+    weatherFetchedAt = Date.now();
+
+    const ticket = ++weatherToken;
+    void (async () => {
+      const snapshot = await fetchWeather(location);
+      if (ticket !== weatherToken || !snapshot) return;
+      set(() => ({ weather: snapshot }));
+    })();
+  },
+
+  loadCrowd: (force = false) => {
+    const { location, stations, crowdStatus } = get();
+    if (!location || stations.length === 0) return;
+    if (crowdStatus === 'loading' && !force) return;
+    // The OSM snapshot itself is cached for 15 min inside crowdContext, so a
+    // 'ready' index only needs the cheap re-score when stations move.
+    if (crowdStatus === 'ready' && !force) return;
+    // A failed Overpass lookup must not be retried on every 5 s station tick.
+    if (!force && Date.now() < crowdRetryAt) return;
+
+    const ticket = ++crowdToken;
+    if (crowdStatus !== 'ready') set(() => ({ crowdStatus: 'loading' }));
+
+    void (async () => {
+      try {
+        const index = await fetchCrowdIndex(stations, location);
+        if (ticket !== crowdToken) return;
+        setCrowdIndex(index);
+        // Profiles are derived from the mix, so stale ones must be dropped.
+        forgetAllProfiles();
+        crowdRetryAt = 0;
+        set((s) => ({ crowdStatus: 'ready', crowdVersion: s.crowdVersion + 1 }));
+      } catch {
+        if (ticket !== crowdToken) return;
+        // Offline / Overpass rate-limited — keep the deterministic fallback
+        // mix so the histogram still differs station by station.
+        crowdRetryAt = Date.now() + CROWD_RETRY_MS;
+        set(() => ({ crowdStatus: 'unavailable' }));
+      }
+    })();
   },
 
   clearNotice: () => set({ notice: null }),

@@ -2,8 +2,9 @@
  * FUELWISE — StationInfoWindow (accessible light card).
  *
  * Rendered inside the selected-station card above a pin. Shows: broken/
- * offline warning, fuel badge, queue wait + price, Station Health Score,
- * the Time-Saving estimate vs the worst option, and the Best Time to Visit.
+ * offline warning, fuel badge, queue wait + price, the live "Popular times"
+ * busyness graph (past-data histogram + live reading), Station Health Score,
+ * the Time-Saving estimate vs the worst option, and a directions button.
  */
 
 import {
@@ -14,7 +15,6 @@ import {
   MapPin,
   Navigation,
   PlugZap,
-  Sun,
   Timer,
   Zap,
 } from 'lucide-react';
@@ -24,11 +24,8 @@ import { useStore } from '../store/useStore';
 import type { FuelType, PressureLevel, Station } from '../types';
 import { formatMinutes } from '../utils/geo';
 import { openGoogleMapsDirections } from '../utils/navigation';
-import {
-  computeHealthScore,
-  computeTimeSaving,
-  getBestTimeToVisit,
-} from '../utils/stationMetrics';
+import { computeHealthScore, computeTimeSaving } from '../utils/stationMetrics';
+import PopularTimesChart from './PopularTimesChart';
 
 interface Props {
   station: Station;
@@ -80,7 +77,6 @@ export default function StationInfoWindow({ station }: Props) {
   const peers = stations.filter((st) => st.type === s.type);
   const health = computeHealthScore(s, peers);
   const saving = computeTimeSaving(s, peers);
-  const quietTime = getBestTimeToVisit(s);
 
   // ---- "Last updated …" freshness readout (1s ticking clock) ----
   const [now, setNow] = useState(() => Date.now());
@@ -178,6 +174,13 @@ export default function StationInfoWindow({ station }: Props) {
         </div>
       </div>
 
+      {/* ---------- Live busyness + popular times (past-data histogram) ---------- */}
+      {s.is_operational && (
+        <div className="mx-4 mt-3 border-t border-line pt-3">
+          <PopularTimesChart station={s} />
+        </div>
+      )}
+
       {/* ---------- Station Health Score ---------- */}
       <div className="px-4 pt-3">
         <div className="flex items-center justify-between">
@@ -220,16 +223,6 @@ export default function StationInfoWindow({ station }: Props) {
       {!s.is_operational && (
         <div className="mx-4 mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-muted">
           No estimate while this charger is offline.
-        </div>
-      )}
-
-      {/* ---------- Best time to visit ---------- */}
-      {s.is_operational && (
-        <div className="mx-4 mt-2.5 flex items-center gap-2 rounded-lg border border-teal bg-teal-soft px-3 py-2">
-          <Sun className="size-4 shrink-0 text-teal" />
-          <p className="text-xs text-slate-700">
-            <b className="text-teal">Quiet time:</b> {quietTime}
-          </p>
         </div>
       )}
 

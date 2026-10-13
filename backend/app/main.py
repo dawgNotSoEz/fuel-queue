@@ -8,6 +8,7 @@ Endpoints:
   POST /api/predict    → XGBoost wait-time prediction + confidence
   POST /api/report     → persist crowd telemetry (queue_records) + cache update
   GET  /api/recommend  → Demand Distribution ranking (best/worst flags)
+  GET  /api/busyness   → popular-times histogram + busiest/quietest windows
 
 Startup:
   1. load XGBoost model (+ encoders/metrics) — heuristic fallback if absent
@@ -24,7 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import ml
 from .database import db_available, init_db, seed_stations_from_cache
-from .routers import predict, recommend, stations
+from .routers import busyness, predict, recommend, stations
 from .simulator import simulator as sim_engine
 
 # Load env vars: prefer the repository root .env, fall back to backend/.env.
@@ -77,6 +78,7 @@ app.add_middleware(
 app.include_router(stations.router, prefix="/api")
 app.include_router(predict.router, prefix="/api")
 app.include_router(recommend.router, prefix="/api")
+app.include_router(busyness.router, prefix="/api")
 
 
 @app.get("/", tags=["system"])

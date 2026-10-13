@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from fastapi import FastAPI, Query
 
+from app.busyness import DAYS_PER_WEEK, HOURS_PER_DAY, WEATHER_FACTOR, get_profile
 from app.geo import haversine_km
 from app.osm import fetch_real_seeds
 from app.station_seed import STATION_SEEDS
@@ -79,6 +80,45 @@ async def stations(
 			rows.append({**_station_row(seed), "distance_km": distance})
 	rows.sort(key=lambda row: row["distance_km"])
 	return {"stations": rows, "count": len(rows), "source": "osm-server"}
+
+
+@app.get("/api/busyness")
+async def busyness(
+	station_id: str = Query(..., min_length=1),
+	type: FuelType = Query(...),
+	hour: int = Query(..., ge=0, le=23),
+	day_of_week: int = Query(..., ge=0, le=6, description="0 = Sunday (JS)"),
+	weather: str = Query("clear"),
+	historical_avg: float | None = Query(None, ge=0, le=240),
+	capacity: int | None = Query(None, ge=1, le=200),
+) -> dict[str, Any]:
+	"""Popular-times histogram derived from past data + the ML wait model.
+
+	Stateless on purpose: Vercel has no simulator, so the station's rolling
+	past-data mean and capacity come from the query string. The maths is
+	shared with `app.busyness` (and mirrored in the frontend curve).
+	"""
+	condition = weather if weather in WEATHER_FACTOR else "clear"
+	profile = get_profile(
+		station_id=station_id,
+		fuel_type=type,
+		day_of_week=day_of_week,
+		weather=condition,
+		historical_avg=historical_avg,
+		capacity=capacity,
+	)
+	return {
+		**profile,
+		"hour": hour,
+		"known_station": False,
+		"grid": {"days": DAYS_PER_WEEK, "hours": HOURS_PER_DAY},
+		"mode": "vercel-lightweight",
+		"caveat": (
+			"Busyness is modelled from the station's past-data mean, the "
+			"weekday/hour demand curve and the ML wait model - not a live "
+			"sensor feed."
+		),
+	}
 
 
 __all__ = ["app"]

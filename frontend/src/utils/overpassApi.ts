@@ -19,6 +19,7 @@
  */
 
 import type { ConnectorType, FuelType, PressureLevel, Station, UserLocation } from '../types';
+import { expectedWaitMinutes } from './busyness';
 import { haversineKm, round } from './geo';
 import { MOCK_STATION_COUNTS, SEARCH_RADIUS_M } from './constants';
 
@@ -74,6 +75,18 @@ function pickFrom<T>(seed: number, list: readonly T[]): T {
 
 const CONNECTORS: readonly ConnectorType[] = ['CCS', 'CHAdeMO', 'Type 2'];
 const PRESSURE: readonly PressureLevel[] = ['low', 'medium', 'high'];
+
+/**
+ * Seed the live queue from the same past-data curve the "Popular times"
+ * histogram uses: OSM has no queue telemetry, so the reading starts at the
+ * expected wait for this hour plus a per-station offset (stable per id).
+ */
+function seedLiveWait(station: Station, spread: number): number {
+  const at = new Date();
+  const expected = expectedWaitMinutes(station, at.getHours(), at.getDay());
+  const offset = 1 + (Math.random() * 2 - 1) * spread;
+  return Math.max(0.5, Math.round(expected * offset * 10) / 10);
+}
 
 /** Try each mirror until one returns a usable payload (browser fetch sends its own UA). */
 async function queryOverpass(lat: number, lng: number): Promise<OverpassElement[]> {
@@ -150,7 +163,7 @@ function buildStations(elements: OverpassElement[], center: UserLocation): Stati
 
     if (type === 'CNG') {
       base.pressure_level = pickFrom(seed, PRESSURE);
-      base.current_wait_time = randInt(seed >>> 5, 5, 60);
+      base.current_wait_time = seedLiveWait(base, 0.25);
     } else {
       // Prefer a connector the station actually advertises on OSM, if any.
       const socketKeys = Object.keys(tags).filter((k) => k.startsWith('socket:'));
@@ -166,7 +179,7 @@ function buildStations(elements: OverpassElement[], center: UserLocation): Stati
             ? 'CHAdeMO'
             : 'Type 2'
         : pickFrom(seed >>> 7, CONNECTORS);
-      base.current_wait_time = isOperational ? randInt(seed >>> 9, 3, 45) : 0;
+      base.current_wait_time = isOperational ? seedLiveWait(base, 0.3) : 0;
     }
 
     stations.push(base);

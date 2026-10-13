@@ -16,7 +16,7 @@
  */
 
 import * as L from 'leaflet';
-import { MapPin, Radio, X } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import {
   MapContainer as LeafletMap,
   Marker,
@@ -27,10 +27,12 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { selectVisibleStations, useStore } from '../store/useStore';
 import type { FuelType, Station } from '../types';
+import { localBusyness } from '../utils/busyness';
 import { DEFAULT_ZOOM } from '../utils/constants';
 import { OSM_ATTRIBUTION, OSM_TILE_URL } from '../utils/mapDarkStyles';
 import { buildPinIcon } from '../utils/mapIcons';
 import BestChoiceCard from './BestChoiceCard';
+import LiveStatusChip from './LiveStatusChip';
 import StationInfoWindow from './StationInfoWindow';
 import StationLegend from './StationLegend';
 
@@ -46,12 +48,23 @@ interface StationMarkerProps {
 
 const StationMarker = memo(
   function StationMarker({ station, selected, onSelect }: StationMarkerProps) {
+    // Live busyness of the area around this pump — the pin colour. Subscribing
+    // to the tick + crowd version means the colour updates in real time.
+    const lastSimTick = useStore((s) => s.lastSimTick);
+    const crowdVersion = useStore((s) => s.crowdVersion);
+    const busyness = useMemo(
+      () => localBusyness(station, new Date()).live.level,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [station, lastSimTick, crowdVersion],
+    );
+
     const icon = useMemo(() => {
       const spec = buildPinIcon({
         type: station.type,
         is_operational: station.is_operational,
         is_best_choice: station.is_best_choice,
         is_worst_choice: station.is_worst_choice,
+        busyness,
       });
       return L.icon({
         iconUrl: spec.url,
@@ -64,6 +77,7 @@ const StationMarker = memo(
       station.is_operational,
       station.is_best_choice,
       station.is_worst_choice,
+      busyness,
     ]);
 
     return (
@@ -171,23 +185,6 @@ function MapReporter({ onMapReady }: { onMapReady: (m: L.Map) => void }) {
 }
 
 // ----------------------------------------------------------------------
-// Floating map chrome
-// ----------------------------------------------------------------------
-function LiveChip() {
-  const dataSource = useStore((s) => s.dataSource);
-  const live = dataSource === 'api' || dataSource === 'live';
-  const label = live ? 'Real station feed' : 'Connecting…';
-  const dot = live ? 'text-success' : 'text-slate-400';
-  return (
-    <div className="pointer-events-none flex items-center gap-2 rounded-full border border-line bg-white px-3.5 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-600 shadow-card">
-      <Radio className={`size-3.5 ${dot}`} />
-      {label}
-      {dataSource && <span className="hidden text-slate-400 sm:inline">· 5s</span>}
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------
 // Selected-station card — projected onto the pin's screen position and
 // re-projected whenever the map moves/zooms (fully controlled).
 // ----------------------------------------------------------------------
@@ -201,6 +198,8 @@ function SelectedStationCard({
   onClose: () => void;
 }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [size, setSize] = useState({ w: 316, h: 320 });
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const { latitude, longitude } = station;
 
   useEffect(() => {
@@ -223,14 +222,40 @@ function SelectedStationCard({
     };
   }, [map, latitude, longitude]);
 
+  // The card grows with the popular-times panel, so keep it inside the
+  // viewport by measuring it (rather than assuming its old fixed height).
+  useEffect(() => {
+    const element = cardRef.current;
+    if (!element) return;
+    const measure = () =>
+      setSize({ w: element.offsetWidth, h: element.offsetHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   if (!pos) return null;
+
+  const halfW = size.w / 2;
+  const left = Math.min(
+    Math.max(pos.x, halfW + 8),
+    window.innerWidth - halfW - 8,
+  );
+  const top = Math.min(
+    Math.max(pos.y - 64, size.h + 12),
+    window.innerHeight - 12,
+  );
 
   return (
     <div
       className="pointer-events-none fixed z-[1400] -translate-x-1/2 -translate-y-full"
-      style={{ left: pos.x, top: pos.y - 64 }}
+      style={{ left, top }}
     >
-      <div className="pointer-events-auto relative w-[316px] overflow-hidden rounded-2xl border border-line bg-white text-ink shadow-pop">
+      <div
+        ref={cardRef}
+        className="pointer-events-auto relative max-h-[70vh] w-[316px] overflow-y-auto overscroll-contain rounded-2xl border border-line bg-white text-ink shadow-pop"
+      >
         <button
           onClick={onClose}
           title="Close"
@@ -318,13 +343,13 @@ export default function MapContainer() {
       )}
 
       {/* ---------- Floating chrome ---------- */}
-      {/* LIVE feed chip (top-right, below navbar) */}
+      {/* LIVE feed + weather + pump-area status (top-right, below navbar) */}
       <div className="pointer-events-none absolute right-4 top-20 z-[1200]">
-        <LiveChip />
+        <LiveStatusChip />
       </div>
 
       {/* Pin key (bottom-left) */}
-      <div className="pointer-events-none absolute bottom-4 left-3 z-[1200] sm:left-4">
+      <div className="pointer-events-none absolute bottom-4 left-3 z-[1200] flex flex-col gap-2 sm:left-4">
         <StationLegend />
       </div>
 

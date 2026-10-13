@@ -1,19 +1,31 @@
 /**
  * FUELWISE — accessible SVG pin factory for Leaflet markers.
  *
- * Warm, high-contrast colors (no black-only UI):
+ * COLOUR = HOW BUSY IT IS RIGHT NOW
+ * ---------------------------------
+ * The pin body is coloured by the live busyness of the area around the pump,
+ * derived from the real places mapped nearby on OpenStreetMap + the current
+ * queue:
  *
- *   CNG          · orange (#f97316) teardrop + white core
- *   EV           · blue (#3b82f6) diamond + white bolt
- *   EV broken    · grey (#94a3b8) diamond + red slash + dim bolt
+ *   green  (#16a34a) · Not busy        — go now
+ *   amber  (#d97706) · A little busy
+ *   orange (#f97316) · Busy
+ *   red    (#dc2626) · As busy as it gets
+ *   grey   (#94a3b8) · Offline / broken (red slash, never a busyness colour)
  *
+ * SHAPE = WHICH FUEL
+ *   CNG · teardrop + fuel drop badge
+ *   EV  · diamond  + bolt badge
+ *
+ * The white badge keeps the fuel glyph readable on every busyness colour.
  * Decision outline on the pin silhouette:
  *   Best   · thick SOLID GREEN (#059669) outline
  *   Worst  · thin DASHED RED (#b91c1c) outline
  *   Normal · thin dark-slate outline
  */
 
-import type { Station } from '../types';
+import type { BusynessLevel, Station } from '../types';
+import { BUSYNESS_STYLE } from './busyness';
 
 export interface PinSpec {
   /** data-URI SVG url */
@@ -28,7 +40,26 @@ export interface PinSpec {
 type PinFlags = Pick<
   Station,
   'type' | 'is_operational' | 'is_best_choice' | 'is_worst_choice'
->;
+> & {
+  /** Live busyness of the area — drives the pin colour. */
+  busyness?: BusynessLevel;
+};
+
+/** Pin body colour per busyness level (single source of truth: busyness.ts). */
+export const PIN_BUSY_HEX: Record<BusynessLevel, string> = {
+  'not-busy': BUSYNESS_STYLE['not-busy'].hex,
+  moderate: BUSYNESS_STYLE.moderate.hex,
+  busy: BUSYNESS_STYLE.busy.hex,
+  peak: BUSYNESS_STYLE.peak.hex,
+};
+
+/** Human label per busyness level (used by the pin key). */
+export const PIN_BUSY_LABEL: Record<BusynessLevel, string> = {
+  'not-busy': 'Not busy',
+  moderate: 'A little busy',
+  busy: 'Busy',
+  peak: 'As busy as it gets',
+};
 
 // ----------------------------------------------------------------------
 // Geometry
@@ -86,26 +117,36 @@ export function buildPinIcon(station: PinFlags): PinSpec {
   const anchorX = 22;
   const anchorY = isCNG ? 60 : 44;
 
-  // Body + silhouette outline.
-  const fill = isCNG ? '#f97316' : broken ? '#94a3b8' : '#3b82f6';
+  // Body fill = live busyness. Broken chargers never borrow a busyness colour.
+  const fill = broken
+    ? '#94a3b8'
+    : PIN_BUSY_HEX[station.busyness ?? 'moderate'];
   const path = `<path d="${isCNG ? CNG_PATH : EV_PATH}" fill="${fill}" stroke="${outline.color}" stroke-width="${outline.width}" stroke-dasharray="${outline.dash}" stroke-linejoin="round"/>`;
 
-  // Interior glyph.
+  // Interior glyph: always on a white badge so the fuel stays readable on any
+  // busyness colour (green → red).
   let glyph = '';
+
   if (isCNG) {
     glyph =
-      `<circle cx="22" cy="22" r="8.6" fill="#ffffff"/>` +
-      glyphEl('translate(22 22) scale(0.42) translate(-12 -12)', DROP_DARK);
+      `<circle cx="22" cy="23" r="9" fill="#ffffff"/>` +
+      glyphEl('translate(22 23) scale(0.44) translate(-12 -12)', DROP_DARK);
   } else {
-    const boltFill = broken ? '#e2e8f0' : '#ffffff';
-    glyph = glyphEl(
-      'translate(22 24) scale(0.62) translate(-12 -12)',
-      bolt(boltFill),
-    );
-    // Broken charger → clear red diagonal slash over the charger.
+    const badgeY = 24;
+    glyph = `<circle cx="22" cy="${badgeY}" r="9" fill="#ffffff"/>`;
     if (broken) {
+      glyph += glyphEl(
+        `translate(22 ${badgeY}) scale(0.6) translate(-12 -12)`,
+        bolt('#cbd5e1'),
+      );
+      // Broken charger → clear red diagonal slash over the badge.
       glyph +=
-        '<line x1="12" y1="12" x2="32" y2="36" stroke="#b91c1c" stroke-width="4" stroke-linecap="round"/>';
+        '<line x1="12" y1="13" x2="32" y2="35" stroke="#b91c1c" stroke-width="4" stroke-linecap="round"/>';
+    } else {
+      glyph += glyphEl(
+        `translate(22 ${badgeY}) scale(0.62) translate(-12 -12)`,
+        bolt('#1d4ed8'),
+      );
     }
   }
 

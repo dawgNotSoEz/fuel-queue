@@ -1,5 +1,5 @@
 /**
- * FUELWISE — FilterToggle (CNG / EV pill switch + "Hide Broken").
+ * FUELWISE — FilterToggle (CNG / EV pill switch + hide broken).
  *
  * Floating control above the map. CNG active = orange, EV active = blue.
  * The secondary switch hides non-operational (broken/offline) chargers —
@@ -41,7 +41,7 @@ export default function FilterToggle() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-20 z-[1200] flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-slate-300 bg-white p-1.5 shadow-card">
+      <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1 rounded-full border border-slate-300 bg-white p-1.5 shadow-card">
         {/* Fuel pills */}
         {OPTIONS.map(({ key, label, icon: Icon, activeClass }) => {
           const active = filter === key;
@@ -68,9 +68,6 @@ export default function FilterToggle() {
             </button>
           );
         })}
-
-        {/* Divider */}
-        <span className="mx-1 h-7 w-px bg-slate-200" aria-hidden />
 
         {/* Hide Broken toggle */}
         <button

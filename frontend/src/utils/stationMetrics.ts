@@ -11,11 +11,13 @@
  *   2. Time-Saving Estimate   — minutes saved vs the worst operational
  *                              option of the same fuel type right now.
  *
- *   3. Best Time to Visit     — a deterministic "quiet window" per station
- *                              (Phase 4 will replace this with ML forecasts).
+ *   3. Best Time to Visit     — the quietest 2-hour window of the station's
+ *                              past-data busyness profile (utils/busyness.ts),
+ *                              the same model behind the "Popular times" graph.
  */
 
 import type { FuelType, Station } from '../types';
+import { buildBusynessProfile, windowLabel } from './busyness';
 
 // ----------------------------------------------------------------------
 // Price competitiveness reference ranges (match mockDataGenerator bands)
@@ -104,28 +106,17 @@ export function computeTimeSaving(
 }
 
 // ----------------------------------------------------------------------
-// Best time to visit — deterministic pseudo-random "quiet window"
-// derived from the station id, stable across re-renders and live ticks.
+// Best time to visit — derived from the station's own past-data busyness
+// profile (see utils/busyness.ts), so the suggestion always matches the
+// "Popular times" histogram shown for the same station.
 // ----------------------------------------------------------------------
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0; // keep it a 32-bit int
-  }
-  return Math.abs(hash);
-}
-
-function to12Hour(hour: number): string {
-  const h = hour % 12 || 12;
-  return `${h} ${hour < 12 ? 'AM' : 'PM'}`;
-}
-
-/** e.g. "Quiet time: 2 PM – 4 PM" */
+/** e.g. "Quiet time: 2 PM – 4 PM · about 3 min wait" */
 export function getBestTimeToVisit(station: Station): string {
-  const seed = hashString(station.id + station.type);
-  const start = 8 + (seed % 10); // 8 AM .. 5 PM
-  const length = 2 + (seed % 3); // 2 .. 4 hours
-  const end = start + length;
-  return `${to12Hour(start)} – ${to12Hour(end)}`;
+  const profile = buildBusynessProfile(station, new Date().getDay());
+  const { quietWindow } = profile;
+  const wait = Math.min(
+    profile.expectedWait[quietWindow.start],
+    profile.expectedWait[quietWindow.start + 1] ?? Number.POSITIVE_INFINITY,
+  );
+  return `${windowLabel(quietWindow)} · about ${Math.round(wait)} min wait`;
 }

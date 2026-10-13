@@ -20,6 +20,7 @@ import type {
   UserLocation,
 } from '../types';
 import { MOCK_STATION_COUNTS, MAX_STATION_RADIUS_KM } from './constants';
+import { expectedWaitMinutes } from './busyness';
 import { destinationPoint, haversineKm, round } from './geo';
 
 // ------------------------------------------------------------------
@@ -30,6 +31,18 @@ const randInt = (min: number, max: number) =>
 const chance = (probability: number) => Math.random() < probability;
 const pick = <T,>(list: readonly T[]): T =>
   list[Math.floor(Math.random() * list.length)];
+
+/**
+ * Seed the live queue from the same past-data curve the "Popular times"
+ * histogram uses — the expected wait for this hour, plus a per-station
+ * offset so "right now" never looks identical to "usually".
+ */
+function seedLiveWait(station: Station, spread: number): number {
+  const at = new Date();
+  const expected = expectedWaitMinutes(station, at.getHours(), at.getDay());
+  const offset = 1 + (Math.random() * 2 - 1) * spread;
+  return Math.max(0.5, Math.round(expected * offset * 10) / 10);
+}
 
 /** Realistic operator words — rendered as "<word> - <area>". */
 const CNG_HUBS = [
@@ -124,10 +137,10 @@ function makeStation(
     const roll = Math.random();
     base.pressure_level =
       roll < 0.28 ? 'low' : roll < 0.78 ? 'medium' : 'high';
-    base.current_wait_time = randInt(5, 60);
+    base.current_wait_time = seedLiveWait(base, 0.25);
   } else {
     base.connector_type = pick(CONNECTORS);
-    base.current_wait_time = isOperational ? randInt(3, 45) : 0;
+    base.current_wait_time = isOperational ? seedLiveWait(base, 0.3) : 0;
   }
 
   return base;
@@ -194,22 +207,36 @@ export function generateMockStations(
  * Live-data simulator: re-roll queue waits and CNG pressure every tick to
  * feel like a fluctuating real feed. EV health is deliberately NOT touched
  * here — broken chargers stay broken for the whole session (see below).
+ *
+ * The waits are not pure noise: each tick is a random walk that is pulled
+ * back towards the station's past-data curve for the current hour, so the
+ * live reading always agrees with the "Popular times" histogram instead of
+ * saturating at "as busy as it gets".
  */
 export function applyLiveTick(prev: Station[]): Station[] {
   if (prev.length === 0) return prev;
+
+  const at = new Date();
+  const hour = at.getHours();
+  const dayOfWeek = at.getDay();
 
   const next = prev.map((s) => {
     // Offline chargers never change mid-session (status fixed at creation).
     if (!s.is_operational) return s;
 
-    // ---- Queue wait: small random walk + occasional arrival "surge" ----
-    const band = s.type === 'CNG' ? [3, 60] : [2, 45];
+    // ---- Expected wait for this hour, from the station's own past data ----
+    const expected = expectedWaitMinutes(s, hour, dayOfWeek);
+
+    // ---- Queue wait: biased random walk + occasional arrival "surge" ----
     let delta = randInt(-3, 3); // slow fluctuation between ticks
     if (chance(0.12)) delta = randInt(-9, 9) >= 0 ? randInt(5, 12) : randInt(-12, -5);
-    const current_wait_time = Math.min(
-      band[1],
-      Math.max(band[0], s.current_wait_time + delta),
-    );
+    const pulled = s.current_wait_time + delta + 0.35 * (expected - s.current_wait_time);
+    // Headroom above the hourly expectation: the weekly peak can be well
+    // above today's value, and a fixed cap would pin busyness at 100%.
+    const ceiling = Math.max(s.type === 'CNG' ? 60 : 45, Math.round(expected * 1.6));
+    const floor = s.type === 'CNG' ? 2 : 1;
+    const current_wait_time =
+      Math.round(Math.min(ceiling, Math.max(floor, pulled)) * 10) / 10;
 
     // ---- CNG pressure: realistic random walk (rarely jumps two steps) ----
     let pressure_level = s.pressure_level;

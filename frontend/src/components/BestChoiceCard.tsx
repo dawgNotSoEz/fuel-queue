@@ -3,16 +3,27 @@
  *
  * The "AI smart-pick" readout: highlights the operational station with the
  * LOWEST (drive + wait). Deep-blue header = primary highlight. Demonstrates
- * the Demand Distribution Algorithm's objective at a glance.
+ * the Demand Distribution Algorithm's objective at a glance, plus the live
+ * busyness badge and the quiet window taken from the "Popular times" model.
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Award, Clock, Fuel, MapPin, Navigation, Zap } from 'lucide-react';
+import {
+  Award,
+  Clock,
+  Fuel,
+  MapPin,
+  Navigation,
+  Sun,
+  Zap,
+} from 'lucide-react';
 
 import { selectVisibleStations, useStore } from '../store/useStore';
 import type { Station } from '../types';
 import { formatMinutes } from '../utils/geo';
 import { openGoogleMapsDirections } from '../utils/navigation';
+import { getBestTimeToVisit } from '../utils/stationMetrics';
+import BusynessBadge from './BusynessBadge';
 
 /** Proportion bars: how much of the total time is driving vs waiting. */
 function TimeSplit({ station }: { station: Station }) {
@@ -112,6 +123,12 @@ export default function BestChoiceCard() {
                   <p className="font-bold text-ink">₹{selected.price}</p>
                 </div>
               </div>
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <BusynessBadge station={selected} />
+                <span className="text-[11px] font-semibold text-muted">
+                  live now
+                </span>
+              </div>
               <button
                 onClick={() => navigateToStation(selected)}
                 className="fw-focus mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand py-2.5 text-xs font-bold text-white transition hover:bg-brand-dark"
@@ -119,9 +136,7 @@ export default function BestChoiceCard() {
                 <Navigation className="size-4" strokeWidth={2} />
                 Get directions
               </button>
-            </div>
-          </motion.div>
-        )}
+            </div>          </motion.div>        )}
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
@@ -171,6 +186,20 @@ export default function BestChoiceCard() {
               </div>
 
               <TimeSplit station={best} />
+
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <BusynessBadge station={best} />
+                <span className="text-[11px] font-semibold text-muted">
+                  live now
+                </span>
+              </div>
+              <p className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-teal bg-teal-soft px-2 py-1 text-[11px] text-slate-700">
+                <Sun className="size-3.5 shrink-0 text-teal" />
+                <span className="truncate">
+                  <b className="text-teal">Quiet time:</b>{' '}
+                  {getBestTimeToVisit(best)}
+                </span>
+              </p>
 
               <div className="mt-4 flex gap-2">
                 <button
